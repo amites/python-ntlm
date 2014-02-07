@@ -173,14 +173,14 @@ def dump_NegotiateFlags(NegotiateFlags):
     if NegotiateFlags & NTLM_Negotiate56:
         print "NTLM_Negotiate56 set"                    
 
-def create_NTLM_NEGOTIATE_MESSAGE(user, type1_flags=NTLM_TYPE1_FLAGS):
+def create_NTLM_NEGOTIATE_MESSAGE(user):
     BODY_LENGTH = 40
     Payload_start = BODY_LENGTH # in bytes
     protocol = 'NTLMSSP\0'    #name        
     
     type = struct.pack('<I',1) #type 1
     
-    flags =  struct.pack('<I', type1_flags)
+    flags =  struct.pack('<I', NTLM_TYPE1_FLAGS)
     Workstation = gethostname().upper().encode('ascii')
     user_parts = user.split('\\', 1)
     DomainName = user_parts[0].upper().encode('ascii')
