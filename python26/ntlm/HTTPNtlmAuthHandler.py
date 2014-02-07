@@ -11,11 +11,15 @@
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library.  If not, see <http://www.gnu.org/licenses/> or <http://www.gnu.org/licenses/lgpl.txt>.
 
-import urllib2
-import httplib, socket
-from urllib import addinfourl
+import base64
+import httplib
 import ntlm
 import re
+import socket
+import string
+from urllib import addinfourl
+import urllib2
+
 
 class AbstractNtlmAuthHandler:
     def __init__(self, password_mgr=None, debuglevel=0):
@@ -49,7 +53,11 @@ Verify "normal" operation.
             # ntlm secures a socket, so we must use the same socket for the complete handshake
             headers = dict(req.headers)
             headers.update(req.unredirected_hdrs)
-            auth = 'NTLM %s' % ntlm.create_NTLM_NEGOTIATE_MESSAGE(user)
+            # auth = 'NTLM %s' % ntlm.create_NTLM_NEGOTIATE_MESSAGE(user)
+
+            # auth = 'NTLM %s' % asbase64(ntlm.create_NTLM_NEGOTIATE_MESSAGE(user, type1_flags))
+            auth = 'NTLM %s' % asbase64(ntlm.create_NTLM_NEGOTIATE_MESSAGE(user))
+
             if req.headers.get(self.auth_header, None) == auth:
                 return None
             headers[self.auth_header] = auth
@@ -82,7 +90,9 @@ Verify "normal" operation.
             if m:
                 auth_header_value, = m.groups()
 
-            (ServerChallenge, NegotiateFlags) = ntlm.parse_NTLM_CHALLENGE_MESSAGE(auth_header_value[5:])
+            #(ServerChallenge, NegotiateFlags) = ntlm.parse_NTLM_CHALLENGE_MESSAGE(auth_header_value[5:])
+            (ServerChallenge, NegotiateFlags) = ntlm.parse_NTLM_CHALLENGE_MESSAGE(base64.decodestring(auth_header_value[5:]))
+
             user_parts = user.split('\\', 1)
             if len(user_parts) == 1:
                 UserName = user_parts[0]
@@ -90,7 +100,8 @@ Verify "normal" operation.
             else:
                 DomainName = user_parts[0].upper()
                 UserName = user_parts[1]
-            auth = 'NTLM %s' % ntlm.create_NTLM_AUTHENTICATE_MESSAGE(ServerChallenge, UserName, DomainName, pw, NegotiateFlags)
+            # auth = 'NTLM %s' % ntlm.create_NTLM_AUTHENTICATE_MESSAGE(ServerChallenge, UserName, DomainName, pw, NegotiateFlags)
+            auth = 'NTLM %s' % asbase64(ntlm.create_NTLM_AUTHENTICATE_MESSAGE(ServerChallenge, UserName, DomainName, pw, NegotiateFlags))
             headers[self.auth_header] = auth
             headers["Connection"] = "Close"
             headers = dict((name.title(), val) for name, val in headers.items())
@@ -112,7 +123,6 @@ Verify "normal" operation.
 
 
 class HTTPNtlmAuthHandler(AbstractNtlmAuthHandler, urllib2.BaseHandler):
-
     auth_header = 'Authorization'
 
     def http_error_401(self, req, fp, code, msg, headers):
@@ -128,6 +138,10 @@ class ProxyNtlmAuthHandler(AbstractNtlmAuthHandler, urllib2.BaseHandler):
 
     def http_error_407(self, req, fp, code, msg, headers):
         return self.http_error_authentication_required('proxy-authenticate', req, fp, headers)
+
+
+def asbase64(msg):
+    return string.replace(base64.encodestring(msg), '\n', '')
 
 
 if __name__ == "__main__":
